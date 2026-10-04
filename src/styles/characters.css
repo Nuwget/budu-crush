@@ -1,0 +1,206 @@
+/* ---------- Characters ---------- */
+.pixelated {
+  image-rendering: pixelated;
+}
+.sprite {
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.dudu {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 640 / 651;
+}
+.bubu {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 256 / 215;
+}
+.bubu-body {
+  position: absolute;
+  inset: 0;
+}
+
+@keyframes idle {
+  0%,
+  100% {
+    transform: rotate(-0.22deg) scale(1);
+  }
+  50% {
+    transform: rotate(0.28deg) scale(1.011) translateY(-0.18%);
+  }
+}
+@keyframes breathe-slow {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02) translateY(-0.3%);
+  }
+}
+@keyframes blink {
+  0%,
+  90%,
+  94%,
+  96.5%,
+  100% {
+    opacity: 0;
+  }
+  91.5%,
+  93%,
+  97%,
+  98.2% {
+    opacity: 1;
+  }
+}
+.anim-idle {
+  animation: idle 7s ease-in-out infinite;
+  transform-origin: 50% 95%;
+  will-change: transform;
+}
+.anim-breathe-slow {
+  animation: breathe-slow 7.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+.anim-blink {
+  animation: blink 7.5s linear infinite;
+  opacity: 0;
+}
+
+/* Moods: the sprite is the same, the body language changes. */
+@keyframes dudu-hop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg) scale(1, 1);
+  }
+  18% {
+    transform: translateY(0) rotate(0) scale(1.06, 0.93);
+  }
+  50% {
+    transform: translateY(-9%) rotate(2deg) scale(0.97, 1.04);
+  }
+  80% {
+    transform: translateY(0) rotate(0) scale(1.03, 0.97);
+  }
+}
+@keyframes dudu-droop {
+  0%,
+  100% {
+    transform: translateY(2%) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(3.4%) rotate(-3deg);
+  }
+}
+@keyframes dudu-perk {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045) translateY(-1.5%);
+  }
+}
+@keyframes dudu-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  20% {
+    transform: translateX(-3%) rotate(-2deg);
+  }
+  50% {
+    transform: translateX(3%) rotate(2deg);
+  }
+  80% {
+    transform: translateX(-2%) rotate(-1deg);
+  }
+}
+.dudu-cheer .dudu-body {
+  animation: dudu-hop 0.7s ease-out infinite;
+}
+.dudu-bright .dudu-body {
+  animation: dudu-perk 0.9s ease-in-out infinite;
+}
+.dudu-sad .dudu-body {
+  animation: dudu-droop 3.2s ease-in-out infinite;
+}
+.dudu-oops .dudu-body {
+  animation: dudu-shake 0.45s ease-out 1;
+}
+.dudu-face {
+  animation: face-pop 0.28s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+@keyframes face-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.dudu-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sparkle 1.3s ease-in-out infinite;
+}
+@keyframes sparkle {
+  0%,
+  100% {
+    transform: scale(0.35) rotate(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1) rotate(25deg);
+    opacity: 1;
+  }
+}
+
+/* Bubu naps on a cloud, a z drifting up now and then. */
+.bubu-sleeping {
+  aspect-ratio: 256 / 250;
+}
+.bubu-sleeping .bubu-body {
+  inset: 0 0 auto 0;
+  height: calc(100% * 215 / 250);
+}
+.bubu-cloud {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: 0;
+  width: 112%;
+  height: auto;
+}
+.bubu-z {
+  position: absolute;
+  right: 2%;
+  top: -2%;
+  font-family: var(--f-pixel), monospace;
+  font-size: 0.9rem;
+  color: var(--lavender);
+  animation: z-float 3.4s ease-in-out infinite;
+}
+.bubu-z2 {
+  right: -9%;
+  top: -14%;
+  font-size: 0.7rem;
+  animation-delay: -1.5s;
+}
+@keyframes z-float {
+  0%,
+  100% {
+    transform: translateY(4px);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
