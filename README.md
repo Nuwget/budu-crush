@@ -1,5 +1,7 @@
 # Dudu & Bubu
 
+**[abrir no ar](https://nuwget.github.io/budu-crush/)** · <https://nuwget.github.io/budu-crush/>
+
 Um match-3 aconchegante da madrugada, feito para celular (e bonito no desktop). Dudu, o urso roxo, joga; Bubu, a panda, tira uma soneca numa nuvem. O fundo (cidade noturna, lua, névoa, estrelas) é o mesmo universo do `nuwget-page`, agora como o mundo do jogo.
 
 A cozy midnight match-3 for phones. Português e English.
