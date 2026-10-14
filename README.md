@@ -58,3 +58,11 @@ node scripts/a11y-check.mjs                       # teclado, movimento reduzido,
 ## Créditos
 
 Dudu e Bubu: ilustração original usada como base dos sprites. Peças, fundo e interface: pixel art procedural em código.
+
+## Juice layer (game feel)
+
+- `src/game/juice.ts` (pure): decides which praise word a clear wave earns and how intense it is (0–4); cooldowns count moves, picks are seeded. Covered in `scripts/engine-check.ts`.
+- `GameController` emits `callout`, `flyScore`, `glow` and `react` through `Fx`; `components/game/fx.ts` routes them to the callouts, particle canvas, score counter, world glow and the characters.
+- Dudu and Bubu (`components/characters/Pal.tsx`, sprites in `public/images/pals/`) react per intensity; the pair pops up from the bottom edge on big combos.
+- Words are in `callout()` of `src/i18n/en.ts` / `pt.ts` (one list per pool in `POOL_SIZE`).
+- All reactions are Web Animations on transform/opacity with pooled elements; they are skipped under reduced motion.

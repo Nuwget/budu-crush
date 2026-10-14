@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { IconButton } from "./Button";
 
 /** A bottom sheet over the current screen. Esc and the backdrop close it; focus moves in. */
@@ -26,8 +26,8 @@ export function Sheet({ open, title, closeLabel, onClose, children, reduce }: { 
     <AnimatePresence>
       {open && (
         <div className="sheet-root">
-          <motion.div className="sheet-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.25 }} />
-          <motion.div
+          <m.div className="sheet-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.25 }} />
+          <m.div
             ref={panel}
             className="sheet glass"
             role="dialog"
@@ -37,7 +37,7 @@ export function Sheet({ open, title, closeLabel, onClose, children, reduce }: { 
             initial={reduce ? { opacity: 0 } : { y: "100%" }}
             animate={reduce ? { opacity: 1 } : { y: 0 }}
             exit={reduce ? { opacity: 0 } : { y: "100%" }}
-            transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 34 }}
+            transition={{ duration: reduce ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="sheet-head">
               <h2 className="sheet-title">{title}</h2>
@@ -48,7 +48,7 @@ export function Sheet({ open, title, closeLabel, onClose, children, reduce }: { 
               </IconButton>
             </div>
             {children}
-          </motion.div>
+          </m.div>
         </div>
       )}
     </AnimatePresence>

@@ -1,58 +1,121 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { LevelDef } from "@/game/engine/types";
 import { charmId } from "@/game/tiles/kinds";
 import type { Dict } from "@/i18n/en";
 import { HeartIcon } from "@/components/ui/Button";
 import { useT } from "@/hooks/useT";
+import { run } from "@/lib/anim";
+
+export interface ScoreHandle {
+  /** Centre of the number in viewport coordinates, where orbs fly to. */
+  point(): { x: number; y: number } | null;
+  /** The number takes a hit of the given intensity (0 soft .. 4 big). */
+  pop(level: number): void;
+  /** Centre of the nth star (0-2) in viewport coordinates. */
+  starPoint(index: number): { x: number; y: number } | null;
+}
 
 /** Counts toward its target with an ease-out, so a big combo visibly pays out. */
-export function ScoreCounter({ value, reduce }: { value: number; reduce: boolean }) {
-  const [shown, setShown] = useState(value);
+function ScoreCounter({ value, reduce }: { value: number; reduce: boolean }) {
+  const [initial] = useState(value);
+  const el = useRef<HTMLSpanElement>(null);
   const from = useRef(value);
   const raf = useRef(0);
   const locale = useT().htmlLang;
+  // The number is written straight to the DOM: counting up is ~20 updates a second that React never needs to see.
   useEffect(() => {
+    const node = el.current;
+    if (!node) return;
     cancelAnimationFrame(raf.current);
+    const write = (n: number) => {
+      from.current = n;
+      node.textContent = Math.round(n).toLocaleString(locale);
+    };
     if (reduce) {
-      raf.current = requestAnimationFrame(() => setShown(value));
-      return () => cancelAnimationFrame(raf.current);
+      write(value);
+      return;
     }
     const start = performance.now();
     const a = from.current;
     const dur = Math.min(900, 250 + Math.abs(value - a) * 1.2);
     const tick = (now: number) => {
       const p = Math.min(1, (now - start) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
-      from.current = a + (value - a) * e;
-      setShown(Math.round(from.current));
+      write(a + (value - a) * (1 - Math.pow(1 - p, 3)));
       if (p < 1) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-  }, [value, reduce]);
-  return <span className="score-num">{shown.toLocaleString(locale)}</span>;
+  }, [value, reduce, locale]);
+  return (
+    <span ref={el} className="score-num">
+      {initial.toLocaleString(locale)}
+    </span>
+  );
 }
 
-/** Score, plus three stars that light as the thresholds are passed. */
-export function ScoreBlock({ score, level, t, reduce }: { score: number; level: LevelDef; t: Dict; reduce: boolean }) {
+const SCORE_POP = [
+  { s: 1.08, r: 0 },
+  { s: 1.14, r: -1 },
+  { s: 1.22, r: 1.5 },
+  { s: 1.32, r: -2 },
+  { s: 1.42, r: 2 },
+];
+
+/** Score, three stars that light as the thresholds are passed, and the combo multiplier. */
+export const ScoreBlock = forwardRef<ScoreHandle, { score: number; combo: number; level: LevelDef; t: Dict; reduce: boolean }>(function ScoreBlock({ score, combo, level, t, reduce }, ref) {
+  const box = useRef<HTMLDivElement>(null);
+  const num = useRef<HTMLDivElement>(null);
+  useImperativeHandle(
+    ref,
+    () => ({
+      point() {
+        const r = box.current?.getBoundingClientRect();
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height * 0.4 } : null;
+      },
+      starPoint(i) {
+        const r = box.current?.querySelectorAll(".score-stars i")[i]?.getBoundingClientRect();
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+      },
+      pop(lvl) {
+        const el = num.current;
+        if (!el || reduce) return;
+        const k = SCORE_POP[Math.min(lvl, 4)];
+        run(
+          el,
+          [
+            { transform: "scale(1) rotate(0deg)", offset: 0 },
+            { transform: `scale(${k.s}) rotate(${k.r}deg)`, offset: 0.28, easing: "cubic-bezier(0.2, 1.6, 0.4, 1)" },
+            { transform: "scale(1) rotate(0deg)", offset: 1 },
+          ],
+          { duration: 300 + lvl * 50, easing: "ease-out" },
+        );
+      },
+    }),
+    [reduce],
+  );
   return (
-    <div className="score-block">
+    <div className="score-block" ref={box}>
       <span className="hud-label">{t.score}</span>
-      <ScoreCounter value={score} reduce={reduce} />
+      <div className="score-pop" ref={num}>
+        <ScoreCounter value={score} reduce={reduce} />
+        <span className="combo-chip" data-on={combo >= 2} data-hot={combo >= 4} aria-hidden="true">
+          <b key={combo}>×{Math.min(combo, 9)}</b>
+        </span>
+      </div>
       {level.objective.type === "score" && (
         <span className="score-stars" aria-hidden="true">
           {level.stars.map((s, i) => (
-            <i key={i} className={`star-icon charm-star ${score >= s ? "is-lit" : ""}`} />
+            <i key={i} className={`star-icon charm-star ${score >= s ? "is-lit" : ""}`} style={{ "--pk": [1.5, 1.8, 2.2][i] } as React.CSSProperties} />
           ))}
         </span>
       )}
     </div>
   );
-}
+});
 
-/** Moves left, as a ring that empties. */
+/** Moves left, as a small ring that empties. The number re-mounts on every change so it can pop. */
 export function MovesRing({ moves, total, t }: { moves: number; total: number; t: Dict }) {
   const R = 22;
   const C = 2 * Math.PI * R;
@@ -64,7 +127,9 @@ export function MovesRing({ moves, total, t }: { moves: number; total: number; t
           <circle cx="26" cy="26" r={R} className="moves-track" />
           <circle cx="26" cy="26" r={R} className="moves-arc" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 26 26)" />
         </svg>
-        <span className="moves-num">{moves}</span>
+        <span key={moves} className="moves-num">
+          {moves}
+        </span>
       </div>
       <span className="hud-label" aria-hidden="true">
         {t.moves}
@@ -99,12 +164,15 @@ export function ObjectiveBar({ level, score, collected, iceLeft, t }: { level: L
   }
   const pct = Math.round(Math.min(1, Math.max(0, progress)) * 100);
   return (
-    <div className="objective glass" role="status" aria-label={`${text}. ${right}`}>
+    <div className={`objective glass ${pct >= 100 ? "is-done" : ""}`} role="status" aria-label={`${text}. ${right}`}>
       {icon}
       <span className="obj-text">{text}</span>
-      <span className="obj-progress">{right}</span>
+      <span key={right} className="obj-progress">
+        {right}
+      </span>
       <span className="obj-bar" aria-hidden="true">
         <span className="obj-fill" style={{ transform: `scaleX(${pct / 100})` }} />
+        <span key={pct} className="obj-glint" />
       </span>
     </div>
   );
@@ -117,15 +185,5 @@ export function LivesChip({ t }: { t: Dict }) {
       <HeartIcon size={18} />
       <b>5</b>
     </span>
-  );
-}
-
-export function ComboBanner({ banner, t }: { banner: { id: number; tier: number; combo: number } | null; t: Dict }) {
-  if (!banner) return null;
-  const idx = Math.min(banner.combo >= 7 ? 4 : banner.tier, 4);
-  return (
-    <div key={banner.id} className={`combo-banner tier-${banner.tier}`} aria-hidden="true">
-      {t.combo[idx]}
-    </div>
   );
 }

@@ -5,6 +5,8 @@ import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import type { GameController } from "@/game/controller";
 import type { LevelDef } from "@/game/engine/types";
 import type { Dict } from "@/i18n/en";
+import { run } from "@/lib/anim";
+import { Callouts, type CalloutsHandle } from "./Callouts";
 import { FloatingText, type FloatingTextHandle } from "./FloatingText";
 import { Tile } from "./Tile";
 import { useView } from "./useView";
@@ -13,7 +15,11 @@ export interface BoardHandle {
   /** Viewport coordinates of a cell's centre. */
   cellPoint(r: number, c: number): { x: number; y: number };
   cellSize(): number;
-  floatText(text: string, r: number, c: number, tier: number): void;
+  floatText(text: string, r: number, c: number, tier: number, target?: { x: number; y: number } | null, ms?: number): void;
+  /** A word of praise near a (fractional) cell; returns where it landed in viewport coordinates, or null if held back. */
+  callout(text: string, level: number, top: number, bottom: number, c: number): { x: number; y: number } | null;
+  /** The board's rim lights up for a moment. */
+  glow(level: number): void;
   shake(strength: number): void;
 }
 
@@ -26,6 +32,8 @@ interface Drag {
   done: boolean;
   wasSelected: boolean;
   pointer: number;
+  /** The charm being dragged, nudged toward the finger before the swap commits. */
+  el: HTMLElement | null;
 }
 
 /** The static checkerboard (holes are left empty). Never re-renders during play. */
@@ -57,7 +65,7 @@ const DIRS: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1
  * into `ctrl.drag` / `ctrl.tap`. The surface sets touch-action: none, so dragging a
  * charm never scrolls or pulls to refresh the page.
  */
-export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: LevelDef; t: Dict; finger: boolean }>(function Board({ ctrl, level, t, finger }, ref) {
+export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: LevelDef; t: Dict; finger: boolean; reduce: boolean }>(function Board({ ctrl, level, t, finger, reduce }, ref) {
   const rows = level.layout.length;
   const cols = level.layout[0].length;
   const tiles = useView(ctrl, (v) => v.tiles);
@@ -69,28 +77,77 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
   const root = useRef<HTMLDivElement>(null);
   const surface = useRef<HTMLDivElement>(null);
   const floaters = useRef<FloatingTextHandle>(null);
+  const callouts = useRef<CalloutsHandle>(null);
+  const rim = useRef<HTMLElement>(null);
   const drag = useRef<Drag | null>(null);
   const [cursor, setCursor] = useState<[number, number]>([Math.floor(rows / 2), Math.floor(cols / 2)]);
   const [announce, setAnnounce] = useState("");
 
+  // One layout read per frame, however many sparks, numbers and words ask where a cell is.
+  const rectCache = useRef<DOMRect | null>(null);
+  const frameRect = () => {
+    if (!rectCache.current) {
+      rectCache.current = surface.current!.getBoundingClientRect();
+      requestAnimationFrame(() => (rectCache.current = null));
+    }
+    return rectCache.current;
+  };
+
   useImperativeHandle(ref, () => ({
     cellPoint(r, c) {
-      const rect = surface.current!.getBoundingClientRect();
+      const rect = frameRect();
       return { x: rect.left + ((c + 0.5) / cols) * rect.width, y: rect.top + ((r + 0.5) / rows) * rect.height };
     },
     cellSize() {
-      return surface.current!.getBoundingClientRect().width / cols;
+      return frameRect().width / cols;
     },
-    floatText(text, r, c, tier) {
-      floaters.current?.add(text, ((c + 0.5) / cols) * 100, ((r + 0.5) / rows) * 100, tier);
+    floatText(text, r, c, tier, target, ms) {
+      floaters.current?.add(text, ((c + 0.5) / cols) * 100, ((r + 0.5) / rows) * 100, tier, target, ms);
+    },
+    callout(text, lvl, top, bottom, c) {
+      // The match is the star: the word goes just above its top row, or just below its bottom row when there
+      // is no room up there. Big words only drift a little toward the middle column.
+      const rowH = 100 / rows;
+      let x = ((c + 0.5) / cols) * 100;
+      if (lvl >= 3) x = 50 + (x - 50) * 0.8;
+      const gap = 1.2 + lvl * 0.05;
+      let y = ((top + 0.5) / rows) * 100 - rowH * gap;
+      if (y < 12) y = ((bottom + 0.5) / rows) * 100 + rowH * gap;
+      y = Math.min(90, Math.max(12, y));
+      if (!callouts.current?.show(text, lvl, x, y)) return null;
+      const at = callouts.current.lastAt();
+      const rect = frameRect();
+      return { x: rect.left + (at.x / 100) * rect.width, y: rect.top + (at.y / 100) * rect.height };
+    },
+    glow(lvl) {
+      const el = rim.current;
+      if (!el || reduce) return;
+      el.dataset.level = String(lvl);
+      run(el, [{ opacity: 0, transform: "scale(0.985)" }, { opacity: 0.35 + lvl * 0.16, transform: "scale(1)", offset: 0.25 }, { opacity: 0, transform: "scale(1.02)" }], { duration: 420 + lvl * 140, easing: "ease-out" });
     },
     shake(strength) {
       const el = root.current;
       if (!el) return;
-      el.style.setProperty("--shake", String(strength));
-      el.classList.remove("is-shaking");
-      void el.offsetWidth; // restart the animation
-      el.classList.add("is-shaking");
+      // one transform animation on the compositor; no class toggling and no forced layout to restart it
+      const k = strength;
+      const at = (x: number, y = 0, sc = 1) => `translate3d(${(x * k).toFixed(2)}px, ${(y * k).toFixed(2)}px, 0) scale(${sc})`;
+      run(
+        el,
+        [
+          { transform: at(0), offset: 0 },
+          { transform: at(-1), offset: 0.1 },
+          { transform: at(2, 1, 1 + k * 0.007), offset: 0.2 },
+          { transform: at(-4, -1), offset: 0.3 },
+          { transform: at(4), offset: 0.4 },
+          { transform: at(-4, -1), offset: 0.5 },
+          { transform: at(4), offset: 0.6 },
+          { transform: at(-4, -1), offset: 0.7 },
+          { transform: at(2, 1, 1 + k * 0.007), offset: 0.8 },
+          { transform: at(-1), offset: 0.9 },
+          { transform: at(0), offset: 1 },
+        ],
+        { duration: 360, easing: "cubic-bezier(0.36, 0.07, 0.19, 0.97)" },
+      );
     },
   }));
 
@@ -120,7 +177,7 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
       return;
     }
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { id, r: cell[0], c: cell[1], x: e.clientX, y: e.clientY, done: false, wasSelected: sel === id, pointer: e.pointerId };
+    drag.current = { id, r: cell[0], c: cell[1], x: e.clientX, y: e.clientY, done: false, wasSelected: sel === id, pointer: e.pointerId, el: surface.current!.querySelector<HTMLElement>(`[data-id="${id}"] .tile-body`) };
     if (sel !== id) ctrl.select(cell[0], cell[1]);
     setCursor(cell);
   };
@@ -131,7 +188,17 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     const cell = surface.current!.getBoundingClientRect().width / cols;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < cell * 0.32) return;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < cell * 0.32) {
+      // follow the finger a little, along the dominant axis only
+      if (d.el && !reduce) {
+        const horiz = Math.abs(dx) > Math.abs(dy);
+        const lim = cell * 0.26;
+        const v = Math.max(-lim, Math.min(lim, (horiz ? dx : dy) * 0.6));
+        d.el.style.translate = horiz ? `${v}px 0px` : `0px ${v}px`;
+      }
+      return;
+    }
+    if (d.el) d.el.style.translate = "";
     d.done = true;
     const horizontal = Math.abs(dx) > Math.abs(dy);
     ctrl.drag(d.r, d.c, horizontal ? 0 : Math.sign(dy), horizontal ? Math.sign(dx) : 0);
@@ -141,6 +208,7 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
     const d = drag.current;
     if (!d || d.pointer !== e.pointerId) return;
     drag.current = null;
+    if (d.el) d.el.style.translate = "";
     if (cancelled || (!d.done && d.wasSelected)) ctrl.deselect();
   };
 
@@ -184,6 +252,7 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
       <div className="board-frame">
         <Cells layout={level.layout} />
         <Ice ice={ice} />
+        <i className="board-sheen" aria-hidden="true" />
         <div
           ref={surface}
           className="board-surface"
@@ -200,10 +269,10 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
           onKeyDown={onKeyDown}
         >
           {tiles.map((tile) => (
-            <Tile key={tile.id} kind={tile.kind} special={tile.special} r={tile.r} c={tile.c} fx={tile.fx} d={tile.d} selected={tile.id === selectedId} hinted={!!hinted?.has(tile.id)} />
+            <Tile key={tile.id} id={tile.id} kind={tile.kind} special={tile.special} r={tile.r} c={tile.c} fx={tile.fx} d={tile.d} selected={tile.id === selectedId} hinted={!!hinted?.has(tile.id)} />
           ))}
           <i className="board-cursor" style={{ "--r": cursor[0], "--c": cursor[1] } as CSSProperties} aria-hidden="true" />
-          <FloatingText ref={floaters} />
+          <FloatingText ref={floaters} reduce={reduce} />
           {finger && hint && phase === "idle" && (
             <span className="finger" aria-hidden="true" style={{ "--ax": pointOf(hint.a[0], hint.a[1]).left, "--ay": pointOf(hint.a[0], hint.a[1]).top, "--bx": pointOf(hint.b[0], hint.b[1]).left, "--by": pointOf(hint.b[0], hint.b[1]).top } as CSSProperties}>
               <svg viewBox="0 0 24 24" shapeRendering="crispEdges">
@@ -212,7 +281,9 @@ export const Board = forwardRef<BoardHandle, { ctrl: GameController; level: Leve
             </span>
           )}
         </div>
+        <Callouts ref={callouts} reduce={reduce} />
       </div>
+      <i ref={rim} className="board-rim" aria-hidden="true" />
       <p id="board-help" className="sr-only">
         {t.boardHelp}
       </p>

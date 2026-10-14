@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Geist, Instrument_Serif, Pixelify_Sans } from "next/font/google";
 import "./globals.css";
-import { artCss } from "@/game/tiles/art";
 import { asset } from "@/lib/asset";
 
 const sans = Geist({ variable: "--f-sans", subsets: ["latin"] });
@@ -32,7 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="pt-BR" className={`${sans.variable} ${display.variable} ${pixel.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: BOOT }} />
-        <style dangerouslySetInnerHTML={{ __html: artCss() }} />
+        <link rel="stylesheet" href={asset("/art.css")} />
       </head>
       <body>
         {children}

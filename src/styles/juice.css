@@ -1,0 +1,340 @@
+/* ---------- Juice: Dudu & Bubu as living HUD characters, the combo chip, end-screen cheers ---------- */
+
+/* Three layers: .pal (layout) > .pal-fx (one-shot reactions, Web Animations) > .pal-idle (CSS loop). */
+.pal {
+  position: relative;
+  flex: none;
+  pointer-events: none;
+}
+.pal-shadow {
+  /* a flat ellipse, no blur: it only scales and fades with the jump */
+  display: block;
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -1px;
+  height: 7%;
+  border-radius: 50%;
+  background: rgb(6 3 28 / 0.32);
+  z-index: -1;
+}
+.pal-fx {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 96%;
+  will-change: transform;
+}
+.pal-idle {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 96%;
+  animation: pal-breathe 4.8s ease-in-out infinite;
+}
+.pal-bubu .pal-idle {
+  animation: pal-munch 6s ease-in-out -1.7s infinite;
+}
+.pal img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* breathing is a squash and stretch, with now and then a curious little head tilt */
+@keyframes pal-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1) rotate(0deg);
+  }
+  35% {
+    transform: scale(0.99, 1.024) rotate(0deg);
+  }
+  66% {
+    transform: scale(1, 1) rotate(0deg);
+  }
+  74% {
+    transform: scale(1.01, 0.99) rotate(2.4deg) translateY(-1%);
+  }
+  86% {
+    transform: scale(1.01, 0.99) rotate(2.4deg) translateY(-1%);
+  }
+  94% {
+    transform: scale(1, 1) rotate(0deg);
+  }
+}
+/* Bubu keeps nibbling the mooncake: two quick bites in every cycle */
+@keyframes pal-munch {
+  0%,
+  100% {
+    transform: scale(1, 1) rotate(0deg);
+  }
+  20% {
+    transform: scale(0.99, 1.022) rotate(0deg);
+  }
+  38% {
+    transform: scale(1.02, 0.975) rotate(-1.6deg);
+  }
+  42% {
+    transform: scale(0.995, 1.01) rotate(0.4deg);
+  }
+  47% {
+    transform: scale(1.02, 0.975) rotate(-1.6deg);
+  }
+  52% {
+    transform: scale(1, 1) rotate(0deg);
+  }
+  75% {
+    transform: scale(0.99, 1.024) rotate(0deg);
+  }
+}
+
+.pal-emote {
+  position: absolute;
+  left: 80%;
+  top: 12%;
+  width: 34%;
+  aspect-ratio: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  will-change: transform, opacity;
+}
+.pal-bubu .pal-emote {
+  left: 18%;
+}
+.pal-emote svg {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
+.pal-emote[data-emote="sparkle"] svg[data-k="sparkle"],
+.pal-emote[data-emote="heart"] svg[data-k="heart"],
+.pal-emote[data-emote="drop"] svg[data-k="drop"],
+.pal-emote[data-emote="bang"] svg[data-k="bang"] {
+  display: block;
+}
+
+/* ---------- Combo multiplier next to the score ---------- */
+.combo-chip {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  margin-left: 2px;
+  padding: 1px 7px 2px;
+  font-family: var(--f-sans), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #3b1450;
+  background: linear-gradient(135deg, #ffd1f0, #ffe08a);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 rgb(59 20 80 / 0.7);
+  opacity: 0;
+  transform: scale(0.4) rotate(-14deg);
+  transition:
+    opacity 0.16s ease,
+    transform 0.4s cubic-bezier(0.2, 1.7, 0.4, 1);
+  pointer-events: none;
+}
+.combo-chip[data-on="true"] {
+  opacity: 1;
+  transform: scale(1) rotate(-6deg);
+}
+.combo-chip[data-hot="true"] {
+  background: linear-gradient(135deg, #ff9bd6, #ffd45e);
+  box-shadow:
+    0 2px 0 rgb(90 26 74 / 0.8),
+    0 0 14px rgb(255 150 220 / 0.8);
+}
+.combo-chip b {
+  display: block;
+  animation: chip-pop 0.4s cubic-bezier(0.2, 1.7, 0.4, 1);
+}
+@keyframes chip-pop {
+  0% {
+    transform: scale(1.7) rotate(8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* ---------- Both of them, popping up from the bottom edge on the biggest plays ---------- */
+/* Inside .board-slot: above the pieces (z 4), below the score numbers (6) and the words of praise (12). Anchored
+   to the bottom edge of the board; hidden until Pal.tsx starts a peek. */
+.duo-peek {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  z-index: 5;
+  width: min(54vw, 240px);
+  pointer-events: none;
+  visibility: hidden;
+  transform: translate(-50%, 300%);
+  will-change: transform;
+}
+.duo-peek img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ---------- End screens ---------- */
+.duo-still {
+  position: relative;
+  width: 100%;
+}
+.duo-still::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 1%;
+  height: 7%;
+  border-radius: 50%;
+  background: rgb(6 3 28 / 0.4);
+  z-index: -1;
+  animation: duo-shadow 1.4s ease-in-out infinite;
+}
+.duo-still-bob {
+  transform-origin: 50% 96%;
+  animation: duo-hop 1.4s ease-in-out infinite;
+  will-change: transform;
+}
+.duo-still img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@keyframes duo-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.04, 0.95) rotate(0deg);
+  }
+  14% {
+    transform: translateY(0) scale(1.08, 0.9) rotate(0deg);
+  }
+  40% {
+    transform: translateY(-9%) scale(0.96, 1.07) rotate(-2.5deg);
+  }
+  62% {
+    transform: translateY(0) scale(1.07, 0.92) rotate(0deg);
+  }
+  78% {
+    transform: translateY(-3%) scale(0.99, 1.02) rotate(2deg);
+  }
+}
+@keyframes duo-shadow {
+  0%,
+  100%,
+  62% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  40% {
+    transform: scaleX(0.82);
+    opacity: 0.6;
+  }
+}
+.end-pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  height: min(26dvh, 150px);
+  margin-bottom: -6px;
+  z-index: 2;
+}
+.end-pair .pal {
+  height: 100%;
+}
+.end-pair .pal:last-child {
+  height: 92%;
+}
+
+/* ---------- Buttons: a spring on release, a glint across the primary one ---------- */
+.gbtn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.38s cubic-bezier(0.2, 1.7, 0.4, 1),
+    box-shadow 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease;
+}
+.gbtn:active {
+  transform: scale(0.96, 0.93);
+  transition-duration: 0.08s;
+}
+.gbtn-solid::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.4), transparent);
+  transform: translateX(-160%) skewX(-20deg);
+  animation: btn-glint 5.5s ease-in-out 1.5s infinite;
+  pointer-events: none;
+}
+@keyframes btn-glint {
+  0%,
+  70% {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(480%) skewX(-20deg);
+  }
+}
+
+/* ---------- The world breathes: slow drifting light, plus a pulse on good plays ---------- */
+.world-aura {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(42% 30% at 24% 28%, rgb(150 100 255 / 0.2), transparent 70%),
+    radial-gradient(36% 28% at 80% 62%, rgb(255 150 220 / 0.13), transparent 70%);
+  animation: aura-drift 26s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes aura-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+    opacity: 0.65;
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+    opacity: 1;
+  }
+}
+.world-pulse {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(70% 46% at 50% 58%, rgb(255 170 230 / 0.55), rgb(150 110 255 / 0.22) 48%, transparent 72%);
+  will-change: opacity;
+}
+
+/* the objective bar sits in front of the resting characters; the moment one of them reacts the whole
+   stats row steps up to the cast layer (in front of the bar and the board), then steps back when it settles */
+.hud-obj {
+  position: relative;
+  z-index: var(--z-hud-obj);
+}
+.hud-stats:has(.pal[data-react]) {
+  z-index: var(--z-cast);
+}
+
+/* moonlight behind the characters: they sit in the same light as the board, not on top of the interface */
+.pal::before {
+  content: "";
+  position: absolute;
+  inset: -8% -14% -2%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(170 140 255 / 0.22), transparent);
+  pointer-events: none;
+}

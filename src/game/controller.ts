@@ -4,6 +4,9 @@ import { resolveSwap } from "./engine/resolve.ts";
 import { findMove } from "./engine/moves.ts";
 import { adjacent } from "./board/board.ts";
 import { comboTier } from "./scoring/tiers.ts";
+import { starsFor } from "./scoring/score.ts";
+import { Juice, type Callout, type Intensity } from "./juice.ts";
+import { mulberry32 } from "../lib/prng.ts";
 
 export type Phase = "idle" | "busy" | "won" | "lost";
 export type Mood = "calm" | "smile" | "bright" | "cheer" | "sad" | "oops";
@@ -37,17 +40,49 @@ export interface View {
   mood: Mood;
   selectedId: number | null;
   hint: Hint | null;
-  banner: { id: number; tier: number; combo: number } | null;
+  /** Cascade step of the move being played; 0 when none. Drives the multiplier chip. */
+  combo: number;
   /** The level has been played at least once (the tutorial goes away). */
   moved: boolean;
   notice: "shuffle" | null;
+}
+
+/** What just happened, for Dudu and Bubu to react to. `x` is the horizontal position on the board, 0..1. */
+export interface Reaction {
+  kind: "match" | "oops" | "win" | "lose" | "low" | "select";
+  level: Intensity;
+  combo: number;
+  x: number;
+}
+
+export interface Impact {
+  level: Intensity;
+  combo: number;
+  callout: Callout | null;
+  /** Rows the cleared tiles span, and their mean column. */
+  top: number;
+  bottom: number;
+  col: number;
+  /** Mean cell of the cleared tiles, where the points are born. */
+  row: number;
+  /** Horizontal position of the match on the board, 0..1. */
+  x: number;
+  delta: number;
 }
 
 /** Everything the controller wants the UI to do besides changing the view. */
 export interface Fx {
   burst(r: number, c: number, kind: number, count: number): void;
   special(special: Special, r: number, c: number, cells: Pos[]): void;
-  floatText(text: string, r: number, c: number, tier: number): void;
+  /** A word of praise for a match spanning rows top..bottom around column c. */
+  callout(co: Callout, top: number, bottom: number, c: number): void;
+  /** The one moment a clear wave lands: word, sparks, score number, rim and characters, timed together. */
+  impact(ev: Impact): void;
+  /** The nth star (0-2) was just earned. */
+  star(index: number): void;
+  /** The whole screen takes a breath: board glow and world light. */
+  glow(level: number): void;
+  react(ev: Reaction): void;
   shake(strength: number): void;
   sfx(name: string, n?: number): void;
   haptic(name: string): void;
@@ -78,13 +113,33 @@ export class GameController {
   private listeners = new Set<() => void>();
   private disposed = false;
   private timers = new Set<number>();
-  private bannerId = 0;
+  private juice: Juice;
+  private scoreAhead = 0;
+  private pendingSpecial: "lineH" | "lineV" | "bomb" | "color" | undefined;
+  /** Clear waves in the move being played, known up front because the engine resolves it whole. */
+  private chain = 1;
+  /** Waits shrink as a cascade builds: each wave comes a little faster than the last. */
+  private pace = 1;
+  private comboTimer = 0;
   private moodTimer = 0;
   private hintTimer = 0;
   private reduce: boolean;
+  private nearFired = false;
   readonly level: LevelDef;
   private fx: Fx;
   private opts: Options;
+
+  /** QA harness only: swap in a prepared engine state (a long cascade) and show it. */
+  qaLoad(state: GameState): void {
+    this.state = state;
+    this.reconcile();
+    this.commit({ moves: state.moves, score: state.score, collected: state.collected, iceLeft: state.iceLeft });
+  }
+
+  /** The effect sink, for the QA harness. */
+  fxForQa(): Fx {
+    return this.fx;
+  }
 
   constructor(level: LevelDef, fx: Fx, opts: Options = {}) {
     this.level = level;
@@ -92,6 +147,7 @@ export class GameController {
     this.opts = opts;
     this.reduce = !!opts.reduceMotion;
     this.state = createState(level);
+    this.juice = new Juice(mulberry32(level.seed ^ 0x5bd1e995));
     this.grid = this.state.board.map((row) => row.map(() => null));
     this.state.board.forEach((row, r) =>
       row.forEach((cell, c) => {
@@ -111,7 +167,7 @@ export class GameController {
       mood: "calm",
       selectedId: null,
       hint: null,
-      banner: null,
+      combo: 0,
       moved: false,
       notice: null,
     };
@@ -142,6 +198,7 @@ export class GameController {
     this.timers.clear();
     window.clearTimeout(this.moodTimer);
     window.clearTimeout(this.hintTimer);
+    window.clearTimeout(this.comboTimer);
   }
 
   private commit(patch: Partial<View>) {
@@ -153,7 +210,7 @@ export class GameController {
   }
 
   private wait(ms: number) {
-    const scaled = this.reduce ? Math.min(ms, 60) : ms;
+    const scaled = this.reduce ? Math.min(ms, 60) : Math.round(ms * this.pace);
     return new Promise<void>((resolve) => {
       if (this.disposed) return resolve();
       const id = window.setTimeout(() => {
@@ -221,6 +278,7 @@ export class GameController {
     }
     this.fx.sfx("click");
     this.fx.haptic("select");
+    this.fx.react({ kind: "select", level: 0, combo: 0, x: (c + 0.5) / this.state.cols });
     this.clearHint();
     this.commit({ selectedId: sel === id ? null : id });
     this.scheduleHint();
@@ -233,6 +291,7 @@ export class GameController {
     if (id !== null) {
       this.fx.sfx("click");
       this.fx.haptic("select");
+      this.fx.react({ kind: "select", level: 0, combo: 0, x: (c + 0.5) / this.state.cols });
     }
   }
 
@@ -253,13 +312,23 @@ export class GameController {
     const res = resolveSwap(this.state, a, b);
     if (res.steps.length === 0) return;
     this.commit({ selectedId: null, phase: "busy", notice: null });
+    this.pendingSpecial = undefined;
+    this.chain = res.steps.filter((x) => x.t === "clear").length;
+    this.pace = 1;
+    window.clearTimeout(this.comboTimer);
     if (!this.view.moved) {
       this.commit({ moved: true });
       this.opts.onFirstMove?.();
     }
     try {
-      for (const step of res.steps) {
+      for (let i = 0; i < res.steps.length; i++) {
         if (this.disposed) return;
+        const step = res.steps[i];
+        if (step.t === "clear") {
+          // the points this wave is worth are known up front: they are born at the impact
+          const next = res.steps.slice(i + 1).find((x) => x.t === "score");
+          this.scoreAhead = next && next.t === "score" ? next.delta : 0;
+        }
         await this.apply(step);
       }
     } finally {
@@ -270,16 +339,34 @@ export class GameController {
     }
     if (this.disposed) return;
     const status = res.state.status;
+    if (this.view.combo) this.comboTimer = window.setTimeout(() => this.commit({ combo: 0 }), 900);
     if (status === "playing") {
       this.commit({ phase: "idle", notice: null });
       this.setMood("calm", 0);
+      if (res.state.moves <= 3) this.fx.react({ kind: "low", level: 0, combo: 0, x: 0.5 });
       this.scheduleHint();
       return;
     }
-    this.setMood(status === "won" ? "cheer" : "sad", 0);
-    this.fx.sfx(status === "won" ? "victory" : "defeat");
-    this.fx.haptic(status === "won" ? "victory" : "defeat");
-    await this.wait(status === "won" ? 1100 : 900);
+    this.pace = 1;
+    if (status === "won") {
+      // a staged ending: the last points arrive and the objective fills, a breath, then the pair and the word
+      this.setMood("cheer", 0);
+      await this.wait(550);
+      if (this.disposed) return;
+      const three = this.level.objective.type !== "score" || starsFor(res.state.score, this.level.stars) === 3;
+      this.fx.sfx("victory");
+      this.fx.haptic("victory");
+      this.fx.react({ kind: "win", level: 4, combo: 0, x: 0.5 });
+      this.fx.callout(this.juice.win(three), this.state.rows / 2 - 0.5, this.state.rows / 2 - 0.5, this.state.cols / 2 - 0.5);
+      this.fx.glow(4);
+      await this.wait(1500);
+    } else {
+      this.fx.react({ kind: "lose", level: 0, combo: 0, x: 0.5 });
+      this.setMood("sad", 0);
+      this.fx.sfx("defeat");
+      this.fx.haptic("defeat");
+      await this.wait(900);
+    }
     if (this.disposed) return;
     this.commit({ phase: status });
     this.opts.onEnd?.(status, res.state.score, res.state.moves);
@@ -347,6 +434,7 @@ export class GameController {
         this.place(ib, step.b[0], step.b[1]);
         this.flush();
         this.fx.sfx("invalid");
+        this.fx.react({ kind: "oops", level: 0, combo: 0, x: (step.a[1] + 0.5) / this.state.cols });
         this.setMood("oops", 1100);
         await this.wait(190);
         return;
@@ -356,12 +444,13 @@ export class GameController {
         if (step.special === "lineH" || step.special === "lineV") this.fx.sfx("line");
         else if (step.special === "bomb") {
           this.fx.sfx("bomb");
-          this.fx.shake(1);
+          this.fx.shake(0.5);
         } else if (step.special === "color") {
           this.fx.sfx("color");
-          this.fx.shake(1.4);
+          this.fx.shake(0.7);
         }
         this.fx.haptic("special");
+        if (step.special !== "none") this.pendingSpecial = step.special;
         this.setMood("bright", 1500);
         await this.wait(200);
         return;
@@ -384,22 +473,40 @@ export class GameController {
         return;
       }
       case "clear": {
-        const tier = comboTier(step.combo);
+        const wave = { size: step.tiles.length, combo: step.combo, chain: this.chain, special: this.pendingSpecial };
+        this.pendingSpecial = undefined;
+        const level = Juice.intensity(wave);
+        this.pace = Math.max(0.65, 1 - (step.combo - 1) * 0.1);
+        let cr = 0;
+        let cc = 0;
+        let top = 99;
+        let bottom = 0;
         for (const t of step.tiles) {
           const rt = this.tiles.get(t.id);
           if (rt) rt.fx = "clear";
-          this.fx.burst(t.r, t.c, t.kind, 5 + tier * 3);
+          this.fx.burst(t.r, t.c, t.kind, 3 + level);
+          cr += t.r / step.tiles.length;
+          cc += t.c / step.tiles.length;
+          top = Math.min(top, t.r);
+          bottom = Math.max(bottom, t.r);
         }
         this.flush();
         this.fx.sfx("match", step.combo);
-        this.fx.haptic(tier >= 1 ? "combo" : "match");
-        if (tier >= 1) {
-          this.fx.sfx("combo", tier);
-          this.commit({ banner: { id: ++this.bannerId, tier, combo: step.combo } });
-          this.setMood(tier >= 3 ? "cheer" : "bright", 1600);
-        } else if (this.view.mood === "calm") this.setMood("smile", 900);
-        if (tier >= 2) this.fx.shake(tier === 3 ? 1.2 : 0.7);
-        await this.wait(230);
+        this.fx.haptic(level >= 3 ? "big" : level >= 1 ? "combo" : "match");
+        // t=0: the tiles squat and swell (CSS). The impact lands ~90ms later and everything else follows from it.
+        await this.wait(90);
+        if (this.disposed) return;
+        this.commit({ combo: step.combo });
+        const co = this.juice.wave(wave);
+        this.fx.impact({ level, combo: step.combo, callout: co, top, bottom, col: cc, row: cr, x: (cc + 0.5) / this.state.cols, delta: this.scoreAhead });
+        if (co) this.fx.sfx("callout", level);
+        if (level >= 1) this.fx.sfx("combo", comboTier(step.combo));
+        if (level >= 1) this.setMood(level >= 3 ? "cheer" : "bright", 1600);
+        else if (this.view.mood === "calm") this.setMood("smile", 900);
+        if (level >= 4) this.fx.shake(0.6);
+        // a short hit-stop on the big ones (the board holds while the effects play), never a freeze
+        const hold = level >= 4 ? 200 : level === 3 ? 90 : 0;
+        await this.wait(140 + hold);
         for (const t of step.tiles) {
           this.tiles.delete(t.id);
           if (this.grid[t.r][t.c] === t.id) this.grid[t.r][t.c] = null;
@@ -415,8 +522,25 @@ export class GameController {
         return;
       }
       case "score": {
+        const before = this.view.score;
+        const beforeCollected = this.view.collected;
+        const beforeIce = this.view.iceLeft;
         this.commit({ score: step.score, collected: step.collected, iceLeft: step.iceLeft });
-        this.fx.floatText(`+${step.delta}`, step.at[0], step.at[1], comboTier(step.combo));
+        // goal progress, and one "almost there" the first time the goal passes 80%
+        const o = this.level.objective;
+        if ((o.type === "collect" && step.collected > beforeCollected) || (o.type === "ice" && step.iceLeft < beforeIce)) this.fx.sfx("obj");
+        const frac = o.type === "score" ? step.score / o.target : o.type === "collect" ? step.collected / o.count : 0;
+        if (!this.nearFired && frac >= 0.8 && frac < 1) {
+          this.nearFired = true;
+          this.fx.sfx("near");
+        }
+        if (this.level.objective.type === "score" && starsFor(step.score, this.level.stars) > starsFor(before, this.level.stars)) {
+          this.fx.callout(this.juice.star(), step.at[0], step.at[0], step.at[1]);
+          this.fx.sfx("star", starsFor(step.score, this.level.stars) - 1);
+          this.fx.star(starsFor(step.score, this.level.stars) - 1);
+          this.fx.glow(3);
+          this.fx.react({ kind: "match", level: 3, combo: step.combo, x: 0.5 });
+        }
         return;
       }
       case "spawn": {

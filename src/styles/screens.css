@@ -322,14 +322,9 @@
   z-index: 2;
   margin-bottom: -26px;
 }
-.end-dudu {
-  filter: drop-shadow(0 16px 26px rgb(10 5 40 / 0.6));
-}
-.end-bubu {
-  position: absolute;
-  right: -46%;
-  bottom: 18px;
-  width: 50%;
+.end-chars.end-duo {
+  width: min(72vw, 300px, 42dvh);
+  margin-bottom: -10px;
 }
 .end-panel {
   width: min(100%, 420px);
@@ -544,4 +539,52 @@
   color: #ffd1d9;
   border-color: #ff7a93;
   background: rgb(255 90 120 / 0.12);
+}
+
+/* ---------- Settings, simplified: three big switches, two segmented rows ---------- */
+.switch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.switch-card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  min-height: 86px;
+  padding: 10px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--faint);
+  background: rgb(139 109 240 / 0.08);
+  border: 1px solid rgb(201 184 255 / 0.14);
+  border-radius: 18px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.switch-card[aria-checked="true"] {
+  color: #0b0722;
+  background: linear-gradient(135deg, #c3b1ff, #8b6df0);
+  border-color: transparent;
+}
+.settings-actions {
+  grid-template-columns: 1fr 1fr;
+}
+.pill-btn {
+  min-height: 46px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgb(139 109 240 / 0.18);
+  border: 1px solid rgb(201 184 255 / 0.22);
+  border-radius: 999px;
+}
+.reset-btn {
+  min-height: 40px;
+  border: 0;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Bubu } from "@/components/characters/Bubu";
 import { DuduAvatar } from "@/components/characters/DuduAvatar";
 import { BackIcon, GearIcon, IconButton } from "@/components/ui/Button";
@@ -44,7 +44,7 @@ export function MapScreen() {
 
   const open = (level: number, el: HTMLElement) => {
     unlockAudio();
-    playSfx("click");
+    playSfx("ui");
     const r = el.getBoundingClientRect();
     nav.go({ name: "game", level, attempt: 0 }, { wipe: true, origin: [(r.left + r.width / 2) / window.innerWidth, (r.top + r.height / 2) / window.innerHeight] });
   };
@@ -84,7 +84,7 @@ export function MapScreen() {
               return (
                 <li key={n.level} className="map-node-slot" style={{ left: `${n.x}%`, top: n.y }}>
                   {isCurrent && (
-                    <motion.span
+                    <m.span
                       className="map-dudu"
                       aria-hidden="true"
                       initial={nav.reduce ? false : { y: -40, opacity: 0 }}
@@ -95,7 +95,7 @@ export function MapScreen() {
                         <DuduAvatar size={46} />
                       </span>
                       <i className="map-dudu-shadow" />
-                    </motion.span>
+                    </m.span>
                   )}
                   <button
                     type="button"

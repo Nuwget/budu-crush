@@ -1,12 +1,13 @@
 import { getSaved } from "../state/store.ts";
 
-export type Haptic = "select" | "swap" | "match" | "combo" | "special" | "victory" | "defeat";
+export type Haptic = "select" | "swap" | "match" | "combo" | "big" | "special" | "victory" | "defeat";
 
 const PATTERNS: Record<Haptic, number | number[]> = {
   select: 8,
   swap: 10,
   match: 14,
   combo: [18, 30, 22],
+  big: [24, 36, 24, 36, 44],
   special: 42,
   victory: [30, 60, 30, 60, 50],
   defeat: 60,

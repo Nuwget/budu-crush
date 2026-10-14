@@ -1,4 +1,18 @@
+import type { Pool } from "../game/juice.ts";
+
 // English is the source of truth: pt.ts is typed against it, so a missing key is a compile error.
+/** Words of praise, one list per pool of src/game/juice.ts (the engine picks the index). */
+const EN_CALLOUTS: Record<Pool, readonly string[]> = {
+  delicia: ["Yummy!", "Yes!", "So cute!", "Lovely!"],
+  muito: ["Very good!", "Nice one!", "Sweet!"],
+  incrivel: ["Incredible!", "So good!", "Brilliant!"],
+  perfect: ["Perfect!", "Marvelous!", "Lovely!"],
+  sensa: ["SENSATIONAL!", "SPECTACULAR!", "WOW!"],
+  mega: ["MEGA COMBO!", "SO YUMMY!", "LEGENDARY!"],
+  special: ["Special!", "Magic!", "Shiny!"],
+  star: ["A star!", "Shining!", "Sparkle!"],
+  win: ["CONGRATS!", "YOU ROCKED IT!"],
+};
 export const en = {
   htmlLang: "en",
   title: "Dudu & Bubu",
@@ -47,7 +61,7 @@ export const en = {
   tutorialMatch: "Line up 3 charms that match",
   tutorialDudu: "Swap two neighbours to line up 3 alike.",
 
-  combo: ["", "Sweet!", "Lovely!", "Magical!", "Moonstruck!"],
+  callout: (pool: Pool, i: number) => EN_CALLOUTS[pool][i % EN_CALLOUTS[pool].length],
   noMoves: "No moves left. Shuffling…",
 
   win: {
@@ -70,8 +84,8 @@ export const en = {
   sfx: "Sound effects",
   haptics: "Vibration",
   language: "Language",
-  motion: "Reduced motion",
-  motionOptions: { system: "Auto", reduce: "On", full: "Off" },
+  motion: "Animation",
+  motionOptions: { system: "Auto", reduce: "Light", full: "Full" },
   on: "On",
   off: "Off",
   resetProgress: "Reset progress",

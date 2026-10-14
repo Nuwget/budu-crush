@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Bubu } from "@/components/characters/Bubu";
 import { Dudu } from "@/components/characters/Dudu";
 import { Button, GearIcon, IconButton } from "@/components/ui/Button";
@@ -27,7 +27,7 @@ export function HomeScreen() {
 
   const play = () => {
     unlockAudio();
-    playSfx("click");
+    playSfx("ui");
     nav.go({ name: "game", level: current, attempt: 0 }, { wipe: true });
   };
 
@@ -40,7 +40,7 @@ export function HomeScreen() {
       </div>
 
       <div className="home-hero">
-        <motion.div
+        <m.div
           className="home-dudu"
           initial={nav.reduce ? false : { opacity: 0, scale: 0.7, y: 40 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -48,32 +48,32 @@ export function HomeScreen() {
         >
           <div className="home-halo" aria-hidden="true" />
           <Dudu mood="smile" />
-        </motion.div>
-        <motion.div className="home-bubu" {...rise(0.55)}>
+        </m.div>
+        <m.div className="home-bubu" {...rise(0.55)}>
           <Bubu sleeping />
-        </motion.div>
+        </m.div>
       </div>
 
-      <motion.h1 className="home-title" {...rise(0.35)}>
+      <m.h1 className="home-title" {...rise(0.35)}>
         {t.title}
-      </motion.h1>
-      <motion.p className="home-tagline" {...rise(0.45)}>
+      </m.h1>
+      <m.p className="home-tagline" {...rise(0.45)}>
         {t.tagline}
-      </motion.p>
+      </m.p>
 
-      <motion.div className="home-actions" {...rise(0.6)}>
+      <m.div className="home-actions" {...rise(0.6)}>
         <Button variant="solid" className="gbtn-xl" onClick={play}>
           {fresh ? t.play : t.continueLevel(current)}
         </Button>
         <Button
           onClick={() => {
-            playSfx("click");
+            playSfx("ui");
             nav.go({ name: "map" });
           }}
         >
           {t.map}
         </Button>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

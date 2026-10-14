@@ -4,8 +4,17 @@
 @import "../styles/gate.css";
 @import "../styles/game.css";
 @import "../styles/screens.css";
+@import "../styles/juice.css";
 
 :root {
+  /* Layer model of a level screen (one stacking context, .screen-game). Bottom to top:
+     HUD text -> objective bar -> board -> CAST (Dudu/Bubu in reaction, the Duo) -> particles.
+     A word of praise (inside the board) stays above the board's own pieces. */
+  --z-board: 3;
+  --z-hud-pals: 4; /* resting presence: the objective bar passes in front of them */
+  --z-hud-obj: 5;
+  --z-cast: 9; /* reaction, mega, victory: in front of the board and the HUD */
+  --z-particles: 30;
   --bg-0: #06051a;
   --bg-1: #0c0a2a;
   --bg-2: #171039;

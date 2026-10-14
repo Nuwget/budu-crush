@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { BubuAvatar, DuduAvatar } from "@/components/characters/DuduAvatar";
 import { useNav } from "@/app-shell/nav";
 import { unlockAudio } from "@/lib/audio/engine";
@@ -35,7 +35,7 @@ export function LanguageScreen() {
     const y = e && e.clientY ? e.clientY : r.top + r.height / 2;
     setPicked({ lang, x, y });
     unlockAudio();
-    playSfx("click");
+    playSfx("ui");
     // the language is saved when the wipe has covered the screen, so the swap is one clean cut
     nav.go({ name: "home" }, { wipe: true, origin: [x / window.innerWidth, y / window.innerHeight], beforeSwap: () => actions.setLang(lang) });
   };
@@ -63,7 +63,7 @@ export function LanguageScreen() {
   return (
     <section className="screen screen-language" data-picked={picked?.lang} role="dialog" aria-modal="true" aria-label="Escolha o idioma / Choose your language" onKeyDown={onKeyDown}>
       <div className="gate-content">
-        <motion.div className="flex items-end justify-center gap-4" {...rise(0.1)}>
+        <m.div className="flex items-end justify-center gap-4" {...rise(0.1)}>
           <div className="gate-avatar">
             <DuduAvatar size={104} />
           </div>
@@ -76,18 +76,18 @@ export function LanguageScreen() {
               z
             </span>
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.h1 className="gate-title" {...rise(0.22)}>
+        <m.h1 className="gate-title" {...rise(0.22)}>
           Escolha o idioma
-        </motion.h1>
-        <motion.p className="gate-sub" {...rise(0.3)}>
+        </m.h1>
+        <m.p className="gate-sub" {...rise(0.3)}>
           Choose your language
-        </motion.p>
+        </m.p>
 
         <div className="gate-cards">
           {CHOICES.map((c, i) => (
-            <motion.div key={c.lang} {...rise(0.42 + i * 0.1)}>
+            <m.div key={c.lang} {...rise(0.42 + i * 0.1)}>
               <button
                 ref={(el) => {
                   refs.current[i] = el;
@@ -116,7 +116,7 @@ export function LanguageScreen() {
                   </kbd>
                 </span>
               </button>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

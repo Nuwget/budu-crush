@@ -1,4 +1,17 @@
+import type { Pool } from "../game/juice.ts";
 import type { Dict } from "./en.ts";
+
+const PT_CALLOUTS: Record<Pool, readonly string[]> = {
+  delicia: ["Delícia!", "Isso!", "Que fofo!", "Lindo!"],
+  muito: ["Muito bom!", "Isso aí!", "Mandou bem!"],
+  incrivel: ["Incrível!", "Que demais!", "Brilhante!"],
+  perfect: ["Perfeito!", "Maravilha!", "Lindo demais!"],
+  sensa: ["SENSACIONAL!", "ESPETACULAR!", "UAU!"],
+  mega: ["MEGA COMBO!", "QUE DELÍCIA!", "LENDÁRIO!"],
+  special: ["Especial!", "Que magia!", "Brilhou!"],
+  star: ["Uma estrela!", "Brilhou!", "Estrelou!"],
+  win: ["PARABÉNS!", "VOCÊ ARRASOU!"],
+};
 
 export const pt: Dict = {
   htmlLang: "pt-BR",
@@ -48,7 +61,7 @@ export const pt: Dict = {
   tutorialMatch: "Alinhe 3 peças iguais",
   tutorialDudu: "Troque duas vizinhas para alinhar 3 iguais.",
 
-  combo: ["", "Docinho!", "Lindo!", "Mágico!", "Lunático!"],
+  callout: (pool, i) => PT_CALLOUTS[pool][i % PT_CALLOUTS[pool].length],
   noMoves: "Sem jogadas. Embaralhando…",
 
   win: {
@@ -71,8 +84,8 @@ export const pt: Dict = {
   sfx: "Efeitos sonoros",
   haptics: "Vibração",
   language: "Idioma",
-  motion: "Movimento reduzido",
-  motionOptions: { system: "Auto", reduce: "Ligado", full: "Desligado" },
+  motion: "Animações",
+  motionOptions: { system: "Auto", reduce: "Leve", full: "Completa" },
   on: "Ligado",
   off: "Desligado",
   resetProgress: "Apagar progresso",

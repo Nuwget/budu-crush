@@ -5,6 +5,7 @@ import { charmId } from "@/game/tiles/kinds";
 import type { TileFx } from "@/game/controller";
 
 interface Props {
+  id: number;
   kind: number;
   special: Special;
   r: number;
@@ -20,10 +21,10 @@ interface Props {
  * variable change the compositor animates. Memoised on primitive props: a cascade only
  * re-renders the tiles that actually changed.
  */
-export const Tile = memo(function Tile({ kind, special, r, c, fx, d, selected, hinted }: Props) {
+export const Tile = memo(function Tile({ id, kind, special, r, c, fx, d, selected, hinted }: Props) {
   const cls = ["tile", fx && `fx-${fx}`, selected && "is-selected", hinted && "is-hint", special !== "none" && `is-${special}`].filter(Boolean).join(" ");
   return (
-    <div className={cls} style={{ "--r": r, "--c": c, "--d": d } as CSSProperties}>
+    <div className={cls} data-id={id} style={{ "--r": r, "--c": c, "--d": d, "--rot": (id % 5) - 2, "--ph": ((id * 37) % 100) / 100 } as CSSProperties}>
       <div className="tile-body">
         {special !== "none" && <div className={`tile-aura aura-${special}`} />}
         <div className={`tile-art charm-${charmId(kind)}`} />

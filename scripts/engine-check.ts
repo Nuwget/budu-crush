@@ -11,6 +11,10 @@ import { applyGravity } from "../src/game/board/gravity.ts";
 import { getLevel, TOTAL_LEVELS } from "../src/game/levels/index.ts";
 import { validateLevel } from "../src/game/levels/validate.ts";
 import { starsFor, waveScore } from "../src/game/scoring/score.ts";
+import { Juice, POOL_SIZE, type Callout } from "../src/game/juice.ts";
+import { mulberry32 } from "../src/lib/prng.ts";
+import { en } from "../src/i18n/en.ts";
+import { pt } from "../src/i18n/pt.ts";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -295,6 +299,51 @@ test("fuzz: invariants hold after every resolved move", () => {
       if (s.status === "playing") assert.ok(hasMove(s.board), `level ${n} stuck`);
     }
   }
+});
+
+test("juice: intensity climbs the cascade ladder", () => {
+  assert.equal(Juice.intensity({ size: 3, combo: 1 }), 0);
+  assert.equal(Juice.intensity({ size: 3, combo: 1, chain: 3 }), 1);
+  assert.equal(Juice.intensity({ size: 4, combo: 1 }), 1);
+  assert.equal(Juice.intensity({ size: 5, combo: 1 }), 3);
+  assert.equal(Juice.intensity({ size: 3, combo: 2, chain: 4 }), 2);
+  assert.equal(Juice.intensity({ size: 3, combo: 3, chain: 4 }), 3);
+  assert.equal(Juice.intensity({ size: 3, combo: 4, chain: 4 }), 4);
+  assert.equal(Juice.intensity({ size: 3, combo: 7, chain: 7 }), 4);
+  assert.equal(Juice.intensity({ size: 3, combo: 1, special: "bomb" }), 3);
+  assert.equal(Juice.intensity({ size: 3, combo: 1, special: "lineH" }), 2);
+});
+
+test("juice: a lone three-match is quiet, the cascade ladder gets its words, no word twice in a row", () => {
+  const j = new Juice(mulberry32(7));
+  for (let m = 0; m < 50; m++) assert.equal(j.wave({ size: 3, combo: 1, chain: 1 }), null);
+  const ladder = ["delicia", "muito", "incrivel", "sensa", "mega", "mega"];
+  ladder.forEach((pool, i) => assert.equal(j.wave({ size: 3, combo: i + 1, chain: 6 })?.pool, pool, `wave ${i + 1}`));
+  assert.equal(j.wave({ size: 4, combo: 1, chain: 1 })?.pool, "delicia");
+  assert.equal(j.wave({ size: 5, combo: 1, chain: 1 })?.pool, "perfect");
+  assert.equal(j.wave({ size: 3, combo: 1, chain: 1, special: "color" })?.pool, "special");
+  assert.equal(j.wave({ size: 3, combo: 9, chain: 9 })?.level, 4);
+  const seen: Callout[] = [];
+  let signature = 0;
+  for (let m = 0; m < 200; m++) {
+    const co = j.wave({ size: 4, combo: 1, chain: 1 });
+    assert.ok(co && co.index >= 0 && co.index < POOL_SIZE.delicia);
+    if (co.index === 0) signature++;
+    seen.push(co);
+  }
+  for (let i = 1; i < seen.length; i++) assert.notEqual(seen[i].index, seen[i - 1].index, "same word twice in a row");
+  assert.ok(signature > 60, `the signature word should lead: ${signature}/200`);
+  assert.equal(j.star().pool, "star");
+  assert.equal(j.win(true).index, 1);
+  assert.equal(j.win(false).index, 0);
+});
+
+test("juice: both languages have a word for every slot of every pool", () => {
+  for (const pool of Object.keys(POOL_SIZE) as (keyof typeof POOL_SIZE)[])
+    for (let i = 0; i < POOL_SIZE[pool]; i++) {
+      assert.ok(en.callout(pool, i).length > 0, `en ${pool} ${i}`);
+      assert.ok(pt.callout(pool, i).length > 0, `pt ${pool} ${i}`);
+    }
 });
 
 console.log(`\n${passed} tests passed`);

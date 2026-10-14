@@ -1,26 +1,46 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import dynamic from "next/dynamic";
+import { AnimatePresence, LazyMotion, m } from "motion/react";
 import { PixelWipe, type WipeHandle } from "@/components/effects/PixelWipe";
 import { World } from "@/components/world/World";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { DICTS } from "@/i18n";
 import { getBuses, setAudioEnabled, unlockAudio } from "@/lib/audio/engine";
 import { setMusicMood, startMusic, stopMusic } from "@/lib/audio/music";
-import { DefeatScreen } from "@/screens/defeat/DefeatScreen";
-import { GameScreen } from "@/screens/game/GameScreen";
 import { HomeScreen } from "@/screens/home/HomeScreen";
 import { LanguageScreen } from "@/screens/language/LanguageScreen";
-import { MapScreen } from "@/screens/map/MapScreen";
-import { SettingsSheet } from "@/screens/settings/SettingsSheet";
-import { VictoryScreen } from "@/screens/victory/VictoryScreen";
 import { useSaved } from "@/state/store";
 import { NavContext, type GoOptions, type Nav } from "./nav";
 import { isInGame, moodFor, type ScreenState } from "./screens";
 
-const COVER_MS = 560;
-const UNCOVER_MS = 760;
+// Only the language/home screens and the world are in the first bundle. The level, the map, the end screens and the
+// settings arrive as their own chunks, fetched while the player reads the home screen (see `warmUp`).
+const GameScreen = dynamic(() => import("@/screens/game/GameScreen").then((x) => x.GameScreen), { ssr: false });
+const MapScreen = dynamic(() => import("@/screens/map/MapScreen").then((x) => x.MapScreen), { ssr: false });
+const VictoryScreen = dynamic(() => import("@/screens/victory/VictoryScreen").then((x) => x.VictoryScreen), { ssr: false });
+const DefeatScreen = dynamic(() => import("@/screens/defeat/DefeatScreen").then((x) => x.DefeatScreen), { ssr: false });
+const SettingsSheet = dynamic(() => import("@/screens/settings/SettingsSheet").then((x) => x.SettingsSheet), { ssr: false });
+const loadMotion = () => import("@/lib/motionFeatures").then((x) => x.default);
+
+/** After the first paint and while the main thread is idle: fetch what the next tap will need, one chunk at a time. */
+function warmUp() {
+  const idle: (fn: () => void) => void = typeof requestIdleCallback === "function" ? (fn) => requestIdleCallback(fn, { timeout: 2500 }) : (fn) => window.setTimeout(fn, 600);
+  idle(() => {
+    void import("@/screens/game/GameScreen");
+    idle(() => {
+      void import("@/screens/map/MapScreen");
+      void import("@/screens/victory/VictoryScreen");
+      void import("@/screens/defeat/DefeatScreen");
+      void import("@/screens/settings/SettingsSheet");
+    });
+  });
+}
+
+// Premium is fast: the wipe is a signature, not a wait. The next screen is already mounting under it.
+const COVER_MS = 320;
+const UNCOVER_MS = 480;
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -92,6 +112,8 @@ export function GameRoot() {
     return () => window.removeEventListener("popstate", onPop);
   }, [go]);
 
+  useEffect(warmUp, []);
+
   // Audio can only start inside a gesture; the first tap or key anywhere unlocks it.
   const { music, sfx } = saved.settings;
   useEffect(() => {
@@ -127,7 +149,7 @@ export function GameRoot() {
   const key = !screen ? "boot" : screen.name === "game" ? `game-${screen.level}-${screen.attempt}` : screen.name;
 
   return (
-    <>
+    <LazyMotion features={loadMotion} strict>
       <World mood={screen ? moodFor(screen) : "gate"} />
       <PixelWipe ref={wipe} />
       {/* go() and exitGame() read refs, but only when called from events */}
@@ -136,7 +158,7 @@ export function GameRoot() {
         <NavContext.Provider value={nav}>
           <main className="app" inert={sheet}>
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div
+              <m.div
                 key={key}
                 className="screen-host"
                 initial={{ opacity: 0 }}
@@ -150,7 +172,7 @@ export function GameRoot() {
                 {screen.name === "game" && <GameScreen levelNumber={screen.level} attempt={screen.attempt} />}
                 {screen.name === "victory" && <VictoryScreen level={screen.level} score={screen.score} stars={screen.stars} best={screen.best} isBest={screen.isBest} />}
                 {screen.name === "defeat" && <DefeatScreen level={screen.level} score={screen.score} />}
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </main>
           <SettingsSheet
@@ -162,6 +184,6 @@ export function GameRoot() {
           />
         </NavContext.Provider>
       )}
-    </>
+    </LazyMotion>
   );
 }
